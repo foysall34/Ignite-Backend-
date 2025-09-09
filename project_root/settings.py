@@ -33,7 +33,6 @@ INSTALLED_APPS = [
     # app 
     'myapp' ,
     'accounts',
-
     # framework 
     'rest_framework',
 ]

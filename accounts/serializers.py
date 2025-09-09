@@ -42,7 +42,6 @@ class RegisterSerializer(serializers.Serializer):
         profile.save()
         
         send_otp_via_email(user.email, otp)
-        
         return user
 
 
@@ -55,7 +54,7 @@ class VerifyOTPSerializer(serializers.Serializer):
 class LoginSerializer(serializers.Serializer):
     email = serializers.EmailField()
     password = serializers.CharField(write_only=True)
-
+    
     def validate(self, data):
         email = data.get("email")
         password = data.get("password")
