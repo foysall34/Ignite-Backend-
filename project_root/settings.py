@@ -18,7 +18,7 @@ SECRET_KEY = 'django-insecure-$5h3i2#$qg#58b1)j00cluqvel2&rp_e^fp**(8f&xyl)!$l71
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = []
+ALLOWED_HOSTS = ["*"]
 
 
 # Application definition
@@ -33,9 +33,14 @@ INSTALLED_APPS = [
     # app 
     'myapp' ,
     'accounts',
+    'chatbot',
     # framework 
     'rest_framework',
 ]
+
+
+
+AUTH_USER_MODEL = 'accounts.User'
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
@@ -53,7 +58,14 @@ REST_FRAMEWORK = {
     )
 }
 
-
+# For development, LocMemCache is easy. For production, use Redis or Memcached.
+CACHES = {
+    'default': {
+        'BACKEND': 'django.core.cache.backends.locmem.LocMemCache',
+        'LOCATION': 'unique-snowflake',
+    }
+}
+CORS_ALLOW_ALL_ORIGINS = True
 # Email Configuration from .env file
 EMAIL_BACKEND = config('EMAIL_BACKEND')
 EMAIL_HOST = config('EMAIL_HOST')
@@ -61,6 +73,10 @@ EMAIL_PORT = config('EMAIL_PORT', cast=int)
 EMAIL_USE_TLS = config('EMAIL_USE_TLS', cast=bool)
 EMAIL_HOST_USER = config('EMAIL_HOST_USER')
 EMAIL_HOST_PASSWORD = config('EMAIL_HOST_PASSWORD')
+
+OPENAI_API_KEY=config('OPENAI_API_KEY')
+PINECONE_API_KEY=config('PINECONE_API_KEY')
+
 
 
 
