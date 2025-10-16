@@ -1,6 +1,8 @@
 from rest_framework import serializers
-from .models import User
+from .models import User , Profile
 from django.contrib.auth import authenticate
+from drf_spectacular.utils import extend_schema_field
+from drf_spectacular.types import OpenApiTypes
 
 class RegisterSerializer(serializers.ModelSerializer):
     password = serializers.CharField(write_only=True)
@@ -37,3 +39,17 @@ class ResetPasswordSerializer(serializers.Serializer):
 class ChangePasswordSerializer(serializers.Serializer):
     old_password = serializers.CharField(required=True)
     new_password = serializers.CharField(required=True)
+
+
+
+
+class ProfileSerializer(serializers.ModelSerializer):
+    profile_picture = serializers.ImageField(required=False, allow_null=True)
+    class Meta:
+        model = Profile
+
+        fields = [
+            'first_name', 'last_name', 'gender', 'profession', 
+            'date_of_birth', 'profile_picture', 'phone', 'location', 
+            'personal_email', 'about_yourself', 'professional_background'
+        ]

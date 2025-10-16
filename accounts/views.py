@@ -11,12 +11,17 @@ from .serializers import (
 )
 from .utils import generate_otp, send_otp_email, send_password_reset_otp_email
 from django.utils import timezone
-
 from django.core.cache import cache
-
+from rest_framework.views import APIView
+from rest_framework.response import Response
+from rest_framework import status
+from rest_framework.permissions import IsAuthenticated
+from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
+from .models import Profile
+from .serializers import ProfileSerializer
 
 class RegisterView(generics.GenericAPIView):
-    serializer_class = RegisterSerializer
+    serializer_class = RegisterSerializer 
 
     def post(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)
@@ -25,38 +30,30 @@ class RegisterView(generics.GenericAPIView):
         email = serializer.validated_data['email']
         password = serializer.validated_data['password']
 
-        # Check if an ACTIVE user with this email already exists in the database
         if User.objects.filter(email=email, is_active=True).exists():
             return Response(
                 {'detail': 'Email is already registered and verified.'},
                 status=status.HTTP_400_BAD_REQUEST
             )
 
-        # If user is not active or doesn't exist, proceed with OTP logic
         otp = generate_otp()
-        hashed_password = make_password(password) # Hash the password
+        hashed_password = make_password(password) 
 
-        # Store user data temporarily in cache for 10 minutes
-        # The cache key is unique for each email
         cache_key = f"unverified_user_{email}"
         user_data = {
             'email': email,
             'password_hash': hashed_password,
             'otp': otp
         }
-        cache.set(cache_key, user_data, timeout=600)  # 600 seconds = 10 minutes
-
-        # Send OTP to user's email
+        cache.set(cache_key, user_data, timeout=600)  
         send_otp_email(email, otp)
-
+        
         return Response(
             {'detail': 'An OTP has been sent to your email. Please use it to verify your account.'},
             status=status.HTTP_200_OK
         )
-
 class VerifyOTPView(generics.GenericAPIView):
     serializer_class = OTPSerializer
-
     def post(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
@@ -81,11 +78,9 @@ class VerifyOTPView(generics.GenericAPIView):
                 {'detail': 'Invalid OTP.'},
                 status=status.HTTP_400_BAD_REQUEST
             )
-        
-        # If OTP is correct, create the user in the database
+       
         try:
-            # We use get_or_create to handle the case where the user might hit register multiple times
-            # but only the first verification should create the user.
+          
             user, created = User.objects.get_or_create(
                 email=user_data['email'],
                 defaults={
@@ -218,3 +213,76 @@ class ChangePasswordView(generics.UpdateAPIView):
             return Response({"detail": "Password updated successfully"}, status=status.HTTP_200_OK)
 
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+    
+
+
+
+
+
+from drf_spectacular.utils import extend_schema
+
+from .models import Profile
+from .serializers import ProfileSerializer
+
+
+class UserProfileView(generics.GenericAPIView):
+    """
+    ব্যবহারকারীর প্রোফাইল তৈরি, দেখা এবং আপডেট করার জন্য ভিউ।
+    """
+    permission_classes = [IsAuthenticated]
+    parser_classes = [MultiPartParser, FormParser, JSONParser]
+    
+
+    serializer_class = ProfileSerializer
+    queryset = Profile.objects.all() # এই ভিউ কোন মডেলের উপর কাজ করবে তা নির্দিষ্ট করা
+
+    def get_object(self):
+        """
+  
+        """
+        try:
+            # self.request.user থেকে সরাসরি প্রোফাইল অবজেক্ট রিটার্ন করা হচ্ছে
+            return self.request.user.profile
+        except Profile.DoesNotExist:
+            return None
+
+    def get(self, request, *args, **kwargs):
+        """
+        GET Method: লগইন করা ব্যবহারকারীর প্রোফাইল ডেটা দেখাবে।
+        """
+        profile = self.get_object()
+        if profile is None:
+            return Response({'error': 'Profile not found.'}, status=status.HTTP_404_NOT_FOUND)
+        
+        # get_serializer ব্যবহার করে স্বয়ংক্রিয়ভাবে সিরিয়ালাইজার ইনস্ট্যান্স তৈরি
+        serializer = self.get_serializer(profile)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
+    def post(self, request, *args, **kwargs):
+    
+        if hasattr(request.user, 'profile'):
+            return Response(
+                {'error': 'Profile already exists for this user.'}, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # get_serializer ব্যবহার করা হয়েছে
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        serializer.save(user=request.user)
+    
+        return Response(serializer.data, status=status.HTTP_201_CREATED)
+
+    def patch(self, request, *args, **kwargs):
+        """
+        PATCH Method: প্রোফাইলের নির্দিষ্ট অংশ আপডেট করবে।
+        """
+        profile = self.get_object()
+        if profile is None:
+            return Response({'error': 'Profile not found. Please create one first.'}, status=status.HTTP_404_NOT_FOUND)
+        
+        # get_serializer ব্যবহার করা হয়েছে এবং partial=True দেওয়া আছে
+        serializer = self.get_serializer(profile, data=request.data, partial=True)
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        return Response(serializer.data, status=status.HTTP_200_OK)

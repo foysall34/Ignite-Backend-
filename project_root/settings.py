@@ -31,14 +31,46 @@ INSTALLED_APPS = [
     'django.contrib.messages',
     'django.contrib.staticfiles',
     # app 
-    'myapp' ,
+
     'accounts',
     'chatbot',
     # framework 
     'rest_framework',
+    'drf_spectacular',
+    'drf_spectacular_sidecar',
 ]
 
 
+SPECTACULAR_SETTINGS = {
+    'TITLE': 'Ignite Project API',
+    'DESCRIPTION': 'API docs for My Project',
+    'VERSION': '1.0.0',
+    # Example: add bearer JWT security scheme visible in Swagger UI
+    'APPEND_COMPONENTS': {
+        'securitySchemes': {
+            'BearerAuth': {
+                'type': 'http',
+                'scheme': 'bearer',
+                'bearerFormat': 'JWT',
+            }
+        }
+    },
+
+       'COMPONENT_SPLIT_REQUEST': True, # অনুরোধের Schema আলাদা করে দেখানোর জন্য
+    'SWAGGER_UI_SETTINGS': {
+        'persistAuthorization': True, # একবার লগইন করলে মনে রাখার জন্য
+    },
+    'SECURITY': [
+        {
+            'Bearer': [] # JWT Bearer Token অথেন্টিকেশন
+        }
+    ],
+    'SECURITY': [{'BearerAuth': []}],   # default security requirement
+    # optional Swagger UI tweaks (persist token, etc.)
+    'SWAGGER_UI_SETTINGS': {
+        'persistAuthorization': True,
+    },
+}
 
 AUTH_USER_MODEL = 'accounts.User'
 
@@ -55,9 +87,19 @@ MIDDLEWARE = [
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': (
         'rest_framework_simplejwt.authentication.JWTAuthentication',
-    )
+    ),
+     'DEFAULT_SCHEMA_CLASS': 'drf_spectacular.openapi.AutoSchema',
 }
 
+
+
+SPECTACULAR_SETTINGS = {
+    'TITLE': 'Ignite Project API',
+    'DESCRIPTION': 'AI & Subscription Based',
+    'VERSION': '1.0.0',
+    'SERVE_INCLUDE_SCHEMA': False,
+    # OTHER SETTINGS
+}
 # For development, LocMemCache is easy. For production, use Redis or Memcached.
 CACHES = {
     'default': {
@@ -146,6 +188,12 @@ USE_TZ = True
 # Static files (CSS, JavaScript, Images)
 # https://docs.djangoproject.com/en/4.2/howto/static-files/
 
+import os
+
+# ... other settings ...
+
+MEDIA_URL = '/media/'
+MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
 STATIC_URL = 'static/'
 
 # Default primary key field type
