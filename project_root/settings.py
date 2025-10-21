@@ -5,6 +5,8 @@ from decouple import config
 from dotenv import load_dotenv 
 from pathlib import Path
 
+load_dotenv()
+
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
@@ -34,6 +36,7 @@ INSTALLED_APPS = [
 
     'accounts',
     'chatbot',
+    'corsheaders',
     # framework 
     'rest_framework',
     'drf_spectacular',
@@ -45,7 +48,6 @@ SPECTACULAR_SETTINGS = {
     'TITLE': 'Ignite Project API',
     'DESCRIPTION': 'API docs for My Project',
     'VERSION': '1.0.0',
-    # Example: add bearer JWT security scheme visible in Swagger UI
     'APPEND_COMPONENTS': {
         'securitySchemes': {
             'BearerAuth': {
@@ -56,17 +58,17 @@ SPECTACULAR_SETTINGS = {
         }
     },
 
-       'COMPONENT_SPLIT_REQUEST': True, # অনুরোধের Schema আলাদা করে দেখানোর জন্য
+       'COMPONENT_SPLIT_REQUEST': True,
     'SWAGGER_UI_SETTINGS': {
-        'persistAuthorization': True, # একবার লগইন করলে মনে রাখার জন্য
+        'persistAuthorization': True,
     },
     'SECURITY': [
         {
-            'Bearer': [] # JWT Bearer Token অথেন্টিকেশন
+            'Bearer': [] 
         }
     ],
-    'SECURITY': [{'BearerAuth': []}],   # default security requirement
-    # optional Swagger UI tweaks (persist token, etc.)
+    'SECURITY': [{'BearerAuth': []}],   
+
     'SWAGGER_UI_SETTINGS': {
         'persistAuthorization': True,
     },
@@ -75,6 +77,7 @@ SPECTACULAR_SETTINGS = {
 AUTH_USER_MODEL = 'accounts.User'
 
 MIDDLEWARE = [
+    'corsheaders.middleware.CorsMiddleware',
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
@@ -92,15 +95,52 @@ REST_FRAMEWORK = {
 }
 
 
+# --------------------- AWS ----------------------------------
+
+AWS_ACCESS_KEY_ID = os.getenv("AWS_ACCESS_KEY_ID")
+AWS_SECRET_ACCESS_KEY = os.getenv("AWS_SECRET_ACCESS_KEY")
+AWS_STORAGE_BUCKET_NAME = os.getenv("AWS_STORAGE_BUCKET_NAME")
+AWS_S3_REGION_NAME = os.getenv("AWS_S3_REGION_NAME", "us-east-1")
+AWS_S3_SIGNATURE_VERSION = "s3v4"
+AWS_DEFAULT_ACL = None  # disable public ACL
+AWS_S3_VERIFY = True
+
+# Default S3 storage backend
+DEFAULT_FILE_STORAGE = "storages.backends.s3boto3.S3Boto3Storage"
+
+# Optional: use your bucket’s custom domain for clean URLs
+AWS_S3_CUSTOM_DOMAIN = f"{AWS_STORAGE_BUCKET_NAME}.s3.amazonaws.com"
+
+#  Make sure MEDIA_URL points to S3
+MEDIA_URL = f"https://{AWS_S3_CUSTOM_DOMAIN}/"
+
+# Optional: (for safety)
+MEDIA_ROOT = ""
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 SPECTACULAR_SETTINGS = {
     'TITLE': 'Ignite Project API',
     'DESCRIPTION': 'AI & Subscription Based',
     'VERSION': '1.0.0',
     'SERVE_INCLUDE_SCHEMA': False,
-    # OTHER SETTINGS
+
 }
-# For development, LocMemCache is easy. For production, use Redis or Memcached.
+
 CACHES = {
     'default': {
         'BACKEND': 'django.core.cache.backends.locmem.LocMemCache',
@@ -108,7 +148,7 @@ CACHES = {
     }
 }
 CORS_ALLOW_ALL_ORIGINS = True
-# Email Configuration from .env file
+
 EMAIL_BACKEND = config('EMAIL_BACKEND')
 EMAIL_HOST = config('EMAIL_HOST')
 EMAIL_PORT = config('EMAIL_PORT', cast=int)  
@@ -119,6 +159,14 @@ EMAIL_HOST_PASSWORD = config('EMAIL_HOST_PASSWORD')
 OPENAI_API_KEY=config('OPENAI_API_KEY')
 PINECONE_API_KEY=config('PINECONE_API_KEY')
 
+
+from datetime import timedelta
+
+SIMPLE_JWT = {
+    'ACCESS_TOKEN_LIFETIME': timedelta(hours=7),  
+    'REFRESH_TOKEN_LIFETIME': timedelta(days=7), 
+   
+}
 
 
 
@@ -192,8 +240,8 @@ import os
 
 # ... other settings ...
 
-MEDIA_URL = '/media/'
-MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
+# MEDIA_URL = '/media/'
+# MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
 STATIC_URL = 'static/'
 
 # Default primary key field type
