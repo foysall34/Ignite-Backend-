@@ -32,6 +32,7 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
+     'storages',
     # app 
 
     'accounts',
@@ -43,6 +44,7 @@ INSTALLED_APPS = [
     'drf_spectacular_sidecar',
 ]
 
+AWS_DEFAULT_ACL = 'public-read'
 
 SPECTACULAR_SETTINGS = {
     'TITLE': 'Ignite Project API',
