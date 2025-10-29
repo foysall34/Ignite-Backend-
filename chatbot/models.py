@@ -1,4 +1,4 @@
-# uploads/models.py
+
 from django.db import models
 
 class UploadFile(models.Model):

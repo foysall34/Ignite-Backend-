@@ -104,19 +104,22 @@ AWS_SECRET_ACCESS_KEY = os.getenv("AWS_SECRET_ACCESS_KEY")
 AWS_STORAGE_BUCKET_NAME = os.getenv("AWS_STORAGE_BUCKET_NAME")
 AWS_S3_REGION_NAME = os.getenv("AWS_S3_REGION_NAME", "us-east-1")
 AWS_S3_SIGNATURE_VERSION = "s3v4"
-AWS_DEFAULT_ACL = None  # disable public ACL
+AWS_DEFAULT_ACL = None 
 AWS_S3_VERIFY = True
 
-# Default S3 storage backend
+
+
+# Keep all files private
+AWS_QUERYSTRING_AUTH = True  
+
 DEFAULT_FILE_STORAGE = "storages.backends.s3boto3.S3Boto3Storage"
 
-# Optional: use your bucket’s custom domain for clean URLs
+
 AWS_S3_CUSTOM_DOMAIN = f"{AWS_STORAGE_BUCKET_NAME}.s3.amazonaws.com"
 
-#  Make sure MEDIA_URL points to S3
 MEDIA_URL = f"https://{AWS_S3_CUSTOM_DOMAIN}/"
 
-# Optional: (for safety)
+
 MEDIA_ROOT = ""
 
 
