@@ -108,7 +108,6 @@ AWS_DEFAULT_ACL = None
 AWS_S3_VERIFY = True
 
 
-
 # Keep all files private
 AWS_QUERYSTRING_AUTH = True  
 
@@ -125,10 +124,18 @@ MEDIA_ROOT = ""
 
 
 
+# OpenAI + Pinecone
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
+PINECONE_API_KEY = os.getenv("PINECONE_API_KEY", "")
+PINECONE_INDEX_NAME = os.getenv("PINECONE_INDEX_NAME", "senses")
+PINECONE_INDEX_NAME='senses'
 
 
+CELERY_BROKER_URL = os.environ.get("CELERY_BROKER_URL", "redis://localhost:6379/0")
+CELERY_RESULT_BACKEND = os.environ.get("CELERY_RESULT_BACKEND", "redis://localhost:6379/1")
 
-
+# Static
+STATIC_URL = "/static/"
 
 
 

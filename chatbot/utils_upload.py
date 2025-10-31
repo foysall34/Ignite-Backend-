@@ -11,14 +11,10 @@ def upload_to_s3(file_obj):
         region_name=settings.AWS_S3_REGION_NAME,
     )
 
- 
-    original_name = os.path.splitext(file_obj.name)[0]  
-    file_extension = os.path.splitext(file_obj.name)[1]  
-
-  
+    original_name = os.path.splitext(file_obj.name)[0]
+    file_extension = os.path.splitext(file_obj.name)[1]
     file_key = f"uploads/{uuid.uuid4()}_{original_name}{file_extension}"
 
- 
     s3.upload_fileobj(
         Fileobj=file_obj,
         Bucket=settings.AWS_STORAGE_BUCKET_NAME,
@@ -29,17 +25,5 @@ def upload_to_s3(file_obj):
         },
     )
 
-
-    presigned_url = s3.generate_presigned_url(
-        'get_object',
-        Params={
-            'Bucket': settings.AWS_STORAGE_BUCKET_NAME,
-            'Key': file_key,
-        },
-        ExpiresIn=3600,  # 1 hour validity
-    )
-
-    return {
-        "key": file_key,
-        "url": presigned_url
-    }
+    # we return key (not public url). signed URL can be generated later if needed.
+    return file_key

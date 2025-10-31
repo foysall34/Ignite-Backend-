@@ -117,6 +117,9 @@ class LoginView(generics.GenericAPIView):
         user = serializer.validated_data
         refresh = RefreshToken.for_user(user)
         return Response({
+            'role' : user.role ,
+            'email' :user.email,
+            'success_msg' : "login successfull",
             'refresh': str(refresh),
             'access': str(refresh.access_token),
         })

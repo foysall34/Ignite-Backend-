@@ -68,7 +68,7 @@ class Profile(models.Model):
  
     personal_email = models.EmailField(blank=True)
     
-    # বড় টেক্সটের জন্য TextField
+
     about_yourself = models.TextField(blank=True)
     professional_background = models.TextField(blank=True)
 
