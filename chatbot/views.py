@@ -52,13 +52,13 @@ class FileUploadViewed(APIView):
             return Response({"error": "No file provided"}, status=status.HTTP_400_BAD_REQUEST)
 
         file_obj = request.FILES["file"]
-        # 1) upload to s3
+
         try:
             s3_key = upload_to_s3(file_obj)
         except Exception as e:
             return Response({"error": "S3 upload failed", "detail": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
-        # 2) create UploadRecord
+
         record = UploadRecord.objects.create(
             role=role.lower(),
             original_name=file_obj.name,
@@ -66,7 +66,6 @@ class FileUploadViewed(APIView):
             status="pending"
         )
 
-        # 3) trigger celery task asynchronously
         process_s3_file_task.delay(record.id, s3_key)
 
         serializer = UploadRecordSerializer(record)
@@ -76,7 +75,7 @@ class FileUploadViewed(APIView):
         }, status=status.HTTP_201_CREATED)
 
 
-# Optional: check status
+
 class UploadStatusView(APIView):
     def get(self, request, record_id):
         try:
@@ -109,7 +108,7 @@ class QueryView(APIView):
             return Response({"error": "Query is required"}, status=status.HTTP_400_BAD_REQUEST)
 
         try:
-            # 1️⃣ Load Pinecone vectorstore
+    
             embeddings = OpenAIEmbeddings(
                 model="text-embedding-3-small",
                 api_key=settings.OPENAI_API_KEY
@@ -119,11 +118,10 @@ class QueryView(APIView):
                 embedding=embeddings
             )
 
-            # 2️⃣ Retrieve top-3 most similar chunks
+
             results = vectorstore.similarity_search(query, k=3)
             context = "\n\n".join([r.page_content for r in results])
 
-            # 3️⃣ Generate AI answer from OpenAI
             client = OpenAI(api_key=settings.OPENAI_API_KEY)
             response = client.chat.completions.create(
                 model="gpt-4o",
@@ -149,3 +147,93 @@ class QueryView(APIView):
 
         except Exception as e:
             return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+
+
+# voice to voice 
+
+from rest_framework.views import APIView
+from rest_framework.parsers import MultiPartParser, FormParser
+from rest_framework.response import Response
+from rest_framework import status
+from django.conf import settings
+from langchain_pinecone import PineconeVectorStore
+from langchain_openai import OpenAIEmbeddings
+from openai import OpenAI
+from elevenlabs.client import ElevenLabs
+import tempfile, base64
+
+
+class VoiceChatElevenView(APIView):
+    parser_classes = [MultiPartParser, FormParser]
+
+    def post(self, request):
+        if "audio" not in request.FILES:
+            return Response({"error": "No audio file provided"}, status=status.HTTP_400_BAD_REQUEST)
+
+        voice_id = request.data.get("voice_id", "pNInz6obpgDQGcFmaJgB")  # Adam as default voice
+
+
+        openai_client = OpenAI(api_key=settings.OPENAI_API_KEY)
+        eleven_client = ElevenLabs(api_key=settings.ELEVENLABS_API_KEY)
+
+        try:
+
+            audio_file = request.FILES["audio"]
+            with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as tmp_audio:
+                for chunk in audio_file.chunks():
+                    tmp_audio.write(chunk)
+                tmp_audio_path = tmp_audio.name
+
+            with open(tmp_audio_path, "rb") as f:
+                transcription = openai_client.audio.transcriptions.create(
+                    model="whisper-1",
+                    file=f
+                )
+            user_text = transcription.text.strip()
+
+       
+            embeddings = OpenAIEmbeddings(
+                model="text-embedding-3-small",
+                api_key=settings.OPENAI_API_KEY
+            )
+            vectorstore = PineconeVectorStore.from_existing_index(
+                index_name=settings.PINECONE_INDEX_NAME,
+                embedding=embeddings
+            )
+            results = vectorstore.similarity_search(user_text, k=3)
+            context = "\n\n".join([r.page_content for r in results])
+
+            
+            gpt_response = openai_client.chat.completions.create(
+                model="gpt-4o",
+                messages=[
+                    {"role": "system", "content": "You are SENSES, a spiritual AI voice companion."},
+                    {"role": "user", "content": f"Context:\n{context}\n\nUser said: {user_text}"}
+                ],
+                temperature=0.7,
+            )
+            answer_text = gpt_response.choices[0].message.content
+
+
+            response_stream = eleven_client.text_to_speech.convert(
+                voice_id=voice_id,
+                model_id="eleven_multilingual_v2",
+                text=answer_text
+            )
+
+            audio_bytes = b"".join(chunk for chunk in response_stream)
+            voice_base64 = base64.b64encode(audio_bytes).decode("utf-8")
+
+            return Response({
+                "user_text": user_text,
+                "answer_text": answer_text,
+                "voice_id": voice_id,
+                "voice_base64": voice_base64
+            }, status=status.HTTP_200_OK)
+
+        except Exception as e:
+            return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+

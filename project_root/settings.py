@@ -127,9 +127,11 @@ MEDIA_ROOT = ""
 # OpenAI + Pinecone
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
 PINECONE_API_KEY = os.getenv("PINECONE_API_KEY", "")
-PINECONE_INDEX_NAME = os.getenv("PINECONE_INDEX_NAME", "senses")
-PINECONE_INDEX_NAME='senses'
+PINECONE_INDEX_NAME = os.getenv("PINECONE_INDEX_NAME", "")
+ELEVENLABS_API_KEY = os.getenv("ELEVENLABS_API_KEY")
 
+# PINECONE_INDEX_NAME='senses'
+# PINECONE_INDEX_NAME='senses-db'
 
 CELERY_BROKER_URL = os.environ.get("CELERY_BROKER_URL", "redis://localhost:6379/0")
 CELERY_RESULT_BACKEND = os.environ.get("CELERY_RESULT_BACKEND", "redis://localhost:6379/1")
