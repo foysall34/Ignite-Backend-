@@ -50,25 +50,18 @@ class User(AbstractBaseUser, PermissionsMixin):
 
 
 
+
 class Profile(models.Model):
-   
     user = models.OneToOneField(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='profile')
     first_name = models.CharField(max_length=100, blank=True)
     last_name = models.CharField(max_length=100, blank=True)
     gender = models.CharField(max_length=20, blank=True)
     profession = models.CharField(max_length=100, blank=True)
     date_of_birth = models.DateField(null=True, blank=True)
-    
- 
     profile_picture = models.ImageField(upload_to='profile_pics/', null=True, blank=True)
-    
     phone = models.CharField(max_length=20, blank=True)
     location = models.CharField(max_length=150, blank=True)
-    
- 
     personal_email = models.EmailField(blank=True)
-    
-
     about_yourself = models.TextField(blank=True)
     professional_background = models.TextField(blank=True)
 

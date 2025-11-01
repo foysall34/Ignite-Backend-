@@ -24,6 +24,4 @@ def upload_to_s3(file_obj):
             "ACL": "private",
         },
     )
-
-    # we return key (not public url). signed URL can be generated later if needed.
     return file_key

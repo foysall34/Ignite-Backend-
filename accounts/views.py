@@ -229,35 +229,31 @@ from .serializers import ProfileSerializer
 
 
 class UserProfileView(generics.GenericAPIView):
-    """
-    ব্যবহারকারীর প্রোফাইল তৈরি, দেখা এবং আপডেট করার জন্য ভিউ।
-    """
+
     permission_classes = [IsAuthenticated]
     parser_classes = [MultiPartParser, FormParser, JSONParser]
     
 
     serializer_class = ProfileSerializer
-    queryset = Profile.objects.all() # এই ভিউ কোন মডেলের উপর কাজ করবে তা নির্দিষ্ট করা
+    queryset = Profile.objects.all() 
 
     def get_object(self):
         """
   
         """
         try:
-            # self.request.user থেকে সরাসরি প্রোফাইল অবজেক্ট রিটার্ন করা হচ্ছে
+           
             return self.request.user.profile
         except Profile.DoesNotExist:
             return None
 
     def get(self, request, *args, **kwargs):
-        """
-        GET Method: লগইন করা ব্যবহারকারীর প্রোফাইল ডেটা দেখাবে।
-        """
+       
         profile = self.get_object()
         if profile is None:
             return Response({'error': 'Profile not found.'}, status=status.HTTP_404_NOT_FOUND)
         
-        # get_serializer ব্যবহার করে স্বয়ংক্রিয়ভাবে সিরিয়ালাইজার ইনস্ট্যান্স তৈরি
+
         serializer = self.get_serializer(profile)
         return Response(serializer.data, status=status.HTTP_200_OK)
 
@@ -269,7 +265,7 @@ class UserProfileView(generics.GenericAPIView):
                 status=status.HTTP_400_BAD_REQUEST
             )
 
-        # get_serializer ব্যবহার করা হয়েছে
+
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         serializer.save(user=request.user)
@@ -277,14 +273,12 @@ class UserProfileView(generics.GenericAPIView):
         return Response(serializer.data, status=status.HTTP_201_CREATED)
 
     def patch(self, request, *args, **kwargs):
-        """
-        PATCH Method: প্রোফাইলের নির্দিষ্ট অংশ আপডেট করবে।
-        """
+       
         profile = self.get_object()
         if profile is None:
             return Response({'error': 'Profile not found. Please create one first.'}, status=status.HTTP_404_NOT_FOUND)
         
-        # get_serializer ব্যবহার করা হয়েছে এবং partial=True দেওয়া আছে
+
         serializer = self.get_serializer(profile, data=request.data, partial=True)
         serializer.is_valid(raise_exception=True)
         serializer.save()

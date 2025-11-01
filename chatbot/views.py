@@ -30,7 +30,7 @@ class FileUploadView(APIView):
 
 
 
-# using celery ------------------------------------
+# --------------------------------------- using celery ------------------------------------
 from rest_framework.views import APIView
 from rest_framework.parsers import MultiPartParser, FormParser
 from rest_framework.response import Response
@@ -98,7 +98,6 @@ from openai import OpenAI
 
 class QueryView(APIView):
     """
-    POST /api/query/
     Body: { "query": "your question" }
     """
 

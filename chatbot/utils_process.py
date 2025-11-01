@@ -41,7 +41,7 @@ def extract_documents_from_file(file_path, file_key):
             transcript = client.audio.transcriptions.create(model="whisper-1", file=f)
         docs.append(Document(page_content=transcript.text, metadata={"source": file_key}))
     else:
-        # fallback: read as text file if possible
+ 
         try:
             with open(file_path, "r", encoding="utf-8") as f:
                 docs.append(Document(page_content=f.read(), metadata={"source": file_key}))
@@ -90,3 +90,6 @@ def process_file_from_s3(file_key):
     vectorstore.add_documents(chunks)
 
     return {"success": True, "chunks": len(chunks)}
+
+
+

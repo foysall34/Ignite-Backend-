@@ -3,6 +3,7 @@ import boto3
 import os
 from django.conf import settings
 
+
 def upload_to_s3(file_obj):
     s3 = boto3.client(
         "s3",
@@ -11,14 +12,13 @@ def upload_to_s3(file_obj):
         region_name=settings.AWS_S3_REGION_NAME,
     )
 
- 
     original_name = os.path.splitext(file_obj.name)[0]  
     file_extension = os.path.splitext(file_obj.name)[1]  
 
   
     file_key = f"uploads/{uuid.uuid4()}_{original_name}{file_extension}"
 
- 
+
     s3.upload_fileobj(
         Fileobj=file_obj,
         Bucket=settings.AWS_STORAGE_BUCKET_NAME,
@@ -28,8 +28,6 @@ def upload_to_s3(file_obj):
             "ACL": "private",
         },
     )
-
-
     presigned_url = s3.generate_presigned_url(
         'get_object',
         Params={
@@ -38,7 +36,6 @@ def upload_to_s3(file_obj):
         },
         ExpiresIn=3600,  # 1 hour validity
     )
-
     return {
         "key": file_key,
         "url": presigned_url
