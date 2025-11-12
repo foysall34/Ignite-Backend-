@@ -14,6 +14,8 @@ class RegisterSerializer(serializers.ModelSerializer):
 class OTPSerializer(serializers.Serializer):
     email = serializers.EmailField()
     otp = serializers.CharField(max_length=4)
+    purpose = serializers.ChoiceField(choices=['registration', 'password_reset'])
+
 
 class LoginSerializer(serializers.Serializer):
     email = serializers.EmailField()
@@ -33,7 +35,7 @@ class ForgotPasswordSerializer(serializers.Serializer):
 
 class ResetPasswordSerializer(serializers.Serializer):
     email = serializers.EmailField()
-    otp = serializers.CharField(max_length=4)
+    # otp = serializers.CharField(max_length=4)
     new_password = serializers.CharField(write_only=True)
 
 class ChangePasswordSerializer(serializers.Serializer):

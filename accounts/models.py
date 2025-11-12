@@ -1,3 +1,4 @@
+from django.utils import timezone 
 from django.contrib.auth.models import AbstractBaseUser, BaseUserManager, PermissionsMixin
 from django.db import models
 from django.conf import settings
@@ -30,6 +31,7 @@ class User(AbstractBaseUser, PermissionsMixin):
     ROLE_CHOICES = (
         ('user', 'User'),
         ('admin', 'Admin'),
+        ('premium', 'Premium')
     )
 
     email = models.EmailField(unique=True)
@@ -39,6 +41,12 @@ class User(AbstractBaseUser, PermissionsMixin):
     otp = models.CharField(max_length=4, blank=True, null=True)
     otp_created_at = models.DateTimeField(blank=True, null=True)
 
+
+
+    monthly_prompt_count = models.IntegerField(default=0)
+    last_reset = models.DateTimeField(default=timezone.now)
+    extra_prompts = models.IntegerField(default=0)
+
     objects = UserManager()
 
     USERNAME_FIELD = 'email'
@@ -46,6 +54,18 @@ class User(AbstractBaseUser, PermissionsMixin):
 
     def __str__(self):
         return self.email
+    
+    def reset_prompt_count_if_needed(self):
+        now = timezone.now()
+        if self.last_reset.month != now.month or self.last_reset.year != now.year:
+            self.monthly_prompt_count = 0
+            self.extra_prompts = 0
+            self.last_reset = now
+            self.save()
+
+    def increment_prompt_count(self):
+        self.monthly_prompt_count += 1
+        self.save()
     
 
 

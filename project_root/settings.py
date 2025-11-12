@@ -1,14 +1,54 @@
 
+from decouple import config
+import os
+
+os.environ['AWS_ACCESS_KEY_ID'] = config('AWS_ACCESS_KEY_ID')
+os.environ['AWS_SECRET_ACCESS_KEY'] = config('AWS_SECRET_ACCESS_KEY')
+os.environ['AWS_DEFAULT_REGION'] = config('AWS_DEFAULT_REGION', default='us-east-2')
+
+
+
 import os
 from pathlib import Path
 from decouple import config
 from dotenv import load_dotenv 
 from pathlib import Path
 
+
+from decouple import config
+import os
+
 load_dotenv()
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
+
+
+import os
+from .aws_secrets import load_aws_secrets
+
+aws_secrets = load_aws_secrets("prod/senses", region_name="us-east-2")
+
+OPENAI_API_KEY = aws_secrets.get("OPENAI_API_KEY", "")
+PINECONE_API_KEY = aws_secrets.get("PINECONE_API_KEY", "")
+ELEVENLABS_API_KEY = aws_secrets.get("ELEVENLABS_API_KEY", "").strip()
+STRIPE_SECRET_KEY = aws_secrets.get("STRIPE_SECRET_KEY", "")
+STRIPE_PREMIUM_PRICE_ID = aws_secrets.get("STRIPE_PREMIUM_PRICE_ID", "")
+STRIPE_TOPUP_PRICE_ID = aws_secrets.get("STRIPE_TOPUP_PRICE_ID", "")
+STRIPE_WEBHOOK_SECRET = aws_secrets.get("STRIPE_WEBHOOK_SECRET", "")
+
+
+# Export for external SDKs
+os.environ["OPENAI_API_KEY"] = OPENAI_API_KEY
+os.environ["PINECONE_API_KEY"] = PINECONE_API_KEY
+os.environ["ELEVENLABS_API_KEY"] = ELEVENLABS_API_KEY
+os.environ["STRIPE_SECRET_KEY"] = STRIPE_SECRET_KEY     
+os.environ["STRIPE_WEBHOOK_SECRET"] = STRIPE_WEBHOOK_SECRET   
+os.environ["STRIPE_PREMIUM_PRICE_ID"] = STRIPE_PREMIUM_PRICE_ID
+os.environ["STRIPE_TOPUP_PRICE_ID"] = STRIPE_TOPUP_PRICE_ID      
+
+print("stripe key :", os.environ.get("STRIPE_SECRET_KEY"))
+print("pinecone key :", os.environ.get("STRIPE_WEBHOOK_SECRET"))
 
 
 # Quick-start development settings - unsuitable for production
@@ -37,12 +77,14 @@ INSTALLED_APPS = [
 
     'accounts',
     'chatbot',
+    'subscriptions',
     'corsheaders',
     # framework 
     'rest_framework',
     'drf_spectacular',
     'drf_spectacular_sidecar',
 ]
+
 
 AWS_DEFAULT_ACL = 'public-read'
 
@@ -97,6 +139,11 @@ REST_FRAMEWORK = {
 }
 
 
+
+
+
+
+
 # --------------------- AWS ----------------------------------
 
 AWS_ACCESS_KEY_ID = os.getenv("AWS_ACCESS_KEY_ID")
@@ -106,6 +153,10 @@ AWS_S3_REGION_NAME = os.getenv("AWS_S3_REGION_NAME", "us-east-1")
 AWS_S3_SIGNATURE_VERSION = "s3v4"
 AWS_DEFAULT_ACL = None 
 AWS_S3_VERIFY = True
+
+
+
+
 
 
 # Keep all files private
@@ -125,19 +176,19 @@ MEDIA_ROOT = ""
 
 
 # OpenAI + Pinecone
-OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
-PINECONE_API_KEY = os.getenv("PINECONE_API_KEY", "")
+# OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
+# PINECONE_API_KEY = os.getenv("PINECONE_API_KEY", "")
 PINECONE_INDEX_NAME = os.getenv("PINECONE_INDEX_NAME", "")
-ELEVENLABS_API_KEY = os.getenv("ELEVENLABS_API_KEY")
+# ELEVENLABS_API_KEY = os.getenv("ELEVENLABS_API_KEY")
 
-# PINECONE_INDEX_NAME='senses'
-# PINECONE_INDEX_NAME='senses-db'
 
+# celery settings
 CELERY_BROKER_URL = os.environ.get("CELERY_BROKER_URL", "redis://localhost:6379/0")
 CELERY_RESULT_BACKEND = os.environ.get("CELERY_RESULT_BACKEND", "redis://localhost:6379/1")
 
 # Static
 STATIC_URL = "/static/"
+
 
 
 
@@ -170,8 +221,12 @@ EMAIL_USE_TLS = config('EMAIL_USE_TLS', cast=bool)
 EMAIL_HOST_USER = config('EMAIL_HOST_USER')
 EMAIL_HOST_PASSWORD = config('EMAIL_HOST_PASSWORD')
 
-OPENAI_API_KEY=config('OPENAI_API_KEY')
-PINECONE_API_KEY=config('PINECONE_API_KEY')
+
+
+STRIPE_SECRET_KEY = config('STRIPE_SECRET_KEY') 
+STRIPE_PREMIUM_PRICE_ID = config('STRIPE_PREMIUM_PRICE_ID')
+STRIPE_TOPUP_PRICE_ID = config('STRIPE_TOPUP_PRICE_ID')      
+STRIPE_WEBHOOK_SECRET = config('STRIPE_WEBHOOK_SECRET')                 
 
 
 from datetime import timedelta

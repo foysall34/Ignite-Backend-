@@ -20,93 +20,132 @@ from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
 from .models import Profile
 from .serializers import ProfileSerializer
 
+from django.core.cache import cache
+from rest_framework import generics, status
+from rest_framework.response import Response
+from django.contrib.auth.hashers import make_password
+from .models import User
+from .serializers import RegisterSerializer
+from .utils import generate_otp, send_otp_email
+
+
 class RegisterView(generics.GenericAPIView):
-    serializer_class = RegisterSerializer 
+    serializer_class = RegisterSerializer
 
     def post(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        
+
         email = serializer.validated_data['email']
         password = serializer.validated_data['password']
 
+        # Check for already active user
         if User.objects.filter(email=email, is_active=True).exists():
             return Response(
                 {'detail': 'Email is already registered and verified.'},
                 status=status.HTTP_400_BAD_REQUEST
             )
 
+        # Generate OTP and hash password
         otp = generate_otp()
-        hashed_password = make_password(password) 
+        hashed_password = make_password(password)
 
-        cache_key = f"unverified_user_{email}"
+        # Use same cache format as VerifyOTPView
+        cache_key = f"registration_otp_{email}"
         user_data = {
             'email': email,
             'password_hash': hashed_password,
-            'otp': otp
+            'otp': otp,
         }
-        cache.set(cache_key, user_data, timeout=600)  
+
+        #  Store OTP data in cache for 10 minutes
+        cache.set(cache_key, user_data, timeout=600)
+
+        # Send email
         send_otp_email(email, otp)
-        
+
         return Response(
             {'detail': 'An OTP has been sent to your email. Please use it to verify your account.'},
             status=status.HTTP_200_OK
         )
+
+
+
+from django.core.cache import cache
+from rest_framework import generics, status
+from rest_framework.response import Response
+from .serializers import OTPSerializer
+from .models import User
+
+
 class VerifyOTPView(generics.GenericAPIView):
     serializer_class = OTPSerializer
+
     def post(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        
+
         email = serializer.validated_data['email']
         otp_from_user = serializer.validated_data['otp']
+        purpose = serializer.validated_data['purpose']
 
-        # Retrieve user data from cache
-        cache_key = f"unverified_user_{email}"
-        user_data = cache.get(cache_key)
+        # cache key dynamic
+        cache_key = f"{purpose}_otp_{email}"
+        cached_data = cache.get(cache_key)
 
-        # Check if data exists in cache
-        if not user_data:
+        if not cached_data:
             return Response(
-                {'detail': 'OTP has expired or you have not registered yet.'},
+                {"detail": "OTP expired or not found."},
                 status=status.HTTP_400_BAD_REQUEST
             )
 
-        # Check if the provided OTP is correct
-        if user_data.get('otp') != otp_from_user:
+        if cached_data.get("otp") != otp_from_user:
             return Response(
-                {'detail': 'Invalid OTP.'},
+                {"detail": "Invalid OTP."},
                 status=status.HTTP_400_BAD_REQUEST
             )
-       
+
         try:
-          
-            user, created = User.objects.get_or_create(
-                email=user_data['email'],
-                defaults={
-                    'password': user_data['password_hash'],
-                    'is_active': True
+            # 1Registration OTP verification
+            if purpose == "registration":
+                user, created = User.objects.get_or_create(
+                    email=cached_data['email'],
+                    defaults={
+                        'password': cached_data['password_hash'],
+                        'is_active': True
+                    }
+                )
+                if not created and not user.is_active:
+                    user.password = cached_data['password_hash']
+                    user.is_active = True
+                    user.save()
+                message = "Account verified successfully. You can now log in."
+
+            # Password Reset OTP verification
+            elif purpose == "password_reset":
+                # Create temporary reset token
+                from uuid import uuid4
+                reset_token = str(uuid4())
+                cache.set(f"reset_token_{email}", reset_token, timeout=300)  # 5 minutes
+                message = "OTP verified successfully. Use the reset token to set a new password."
+                response_data = {
+                    "detail": message,
+               
                 }
-            )
-            
-            # If the user was already created somehow but not active, activate them now
-            if not created and not user.is_active:
-                user.password = user_data['password_hash']
-                user.is_active = True
-                user.save()
+                cache.delete(cache_key)
+                return Response(response_data, status=status.HTTP_200_OK)
 
-            # Clean up by deleting the cache entry
+            # delete otp after verification
             cache.delete(cache_key)
+            return Response({'detail': message}, status=status.HTTP_200_OK)
 
-            return Response(
-                {'detail': 'Account verified successfully. You can now log in.'},
-                status=status.HTTP_201_CREATED
-            )
         except Exception as e:
             return Response(
-                {'detail': f'An error occurred: {str(e)}'},
+                {"detail": f"An error occurred: {str(e)}"},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
+
+
 
 class LoginView(generics.GenericAPIView):
     serializer_class = LoginSerializer
@@ -148,6 +187,9 @@ class ResendOTPView(generics.GenericAPIView):
         
         return Response({'detail': 'A new OTP has been sent to your email.'}, status=status.HTTP_200_OK)
 
+from django.core.cache import cache
+from datetime import timedelta
+
 class ForgotPasswordView(generics.GenericAPIView):
     serializer_class = ForgotPasswordSerializer
 
@@ -166,34 +208,37 @@ class ForgotPasswordView(generics.GenericAPIView):
         user.otp_created_at = timezone.now()
         user.save()
 
+        #  Save OTP to cache for VerifyOTPView to find
+        cache_key = f"password_reset_otp_{email}"
+        cache.set(cache_key, {"email": email, "otp": otp}, timeout=300)  # valid for 5 min
+
+        # Send email
         send_password_reset_otp_email(user.email, otp)
         
         return Response({'detail': 'Password reset OTP sent to your email.'}, status=status.HTTP_200_OK)
 
+
+
+
 class ResetPasswordView(generics.GenericAPIView):
-    serializer_class = ResetPasswordSerializer
-
     def post(self, request, *args, **kwargs):
-        serializer = self.get_serializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-        email = serializer.validated_data['email']
-        otp = serializer.validated_data['otp']
-        new_password = serializer.validated_data['new_password']
+        email = request.data.get("email")
 
+        new_password = request.data.get("new_password")
+
+        
         try:
             user = User.objects.get(email=email)
-        except User.DoesNotExist:
-            return Response({'detail': 'User not found.'}, status=status.HTTP_404_NOT_FOUND)
-
-        if user.otp == otp:
-            # Consider adding OTP expiry check here
             user.set_password(new_password)
-            user.otp = None
-            user.otp_created_at = None
             user.save()
-            return Response({'detail': 'Password has been reset successfully.'}, status=status.HTTP_200_OK)
+           
+            return Response({"detail": "Password reset successfully."}, status=status.HTTP_200_OK)
+        except User.DoesNotExist:
+            return Response({"detail": "User not found."}, status=status.HTTP_404_NOT_FOUND)
 
-        return Response({'detail': 'Invalid OTP.'}, status=status.HTTP_400_BAD_REQUEST)
+
+
+
 
 class ChangePasswordView(generics.UpdateAPIView):
     serializer_class = ChangePasswordSerializer
