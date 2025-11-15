@@ -30,17 +30,7 @@ class UserManager(BaseUserManager):
 
 
 
-class Plan(models.Model):
-    PLAN_TYPES = (
-        ("freebie", "Freebie"),
-        ("premium", "Premium"),
-    )
 
-    plan_type = models.CharField(max_length=50, choices=PLAN_TYPES)
-    is_paid = models.BooleanField(default=False)
-
-    def __str__(self):
-        return f"{self.plan_type} ({'Paid' if self.is_paid else 'Free'})"
 
 
 
@@ -50,7 +40,13 @@ class User(AbstractBaseUser, PermissionsMixin):
         ('admin', 'Admin'),
      
     )
-    plan = models.ForeignKey("Plan", on_delete=models.SET_NULL, null=True, blank=True)
+
+    PLAN_CHOICES = (
+        ('freebie', 'Freebie'),
+        ('premium', 'Premium'),
+    )
+    plan_type = models.CharField(max_length=20, choices=PLAN_CHOICES, default='freebie')
+    is_plan_paid = models.BooleanField(default=False)
     plan_start_date = models.DateTimeField(null=True, blank=True)
     plan_end_date = models.DateTimeField(null=True, blank=True)
     email = models.EmailField(unique=True)

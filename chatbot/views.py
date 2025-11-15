@@ -615,13 +615,20 @@ class CreateTopUpCheckoutView(APIView):
 # payments/webhooks.py
 import stripe
 from django.conf import settings
-from django.views.decorators.csrf import csrf_exempt
 from django.http import JsonResponse
-from accounts.models import User
-from accounts.models import Plan
+from django.views.decorators.csrf import csrf_exempt
 from django.utils import timezone
+from accounts.models import User
 
 stripe.api_key = settings.STRIPE_SECRET_KEY
+
+
+def safe_ts_to_dt(ts):
+    """Safely convert timestamp to datetime or return None."""
+    if not ts:
+        return None
+    return timezone.datetime.fromtimestamp(ts, tz=timezone.utc)
+
 
 @csrf_exempt
 def stripe_webhook(request):
@@ -632,83 +639,110 @@ def stripe_webhook(request):
     try:
         event = stripe.Webhook.construct_event(payload, sig_header, endpoint_secret)
     except Exception as e:
-        return JsonResponse({'error': str(e)}, status=400)
+        return JsonResponse({"error": str(e)}, status=400)
 
+    print(f"[Stripe] Event received: {event['type']}")
 
-    # ----------------------------------------------------------------
-    # 1) CHECKOUT SESSION COMPLETED → attach premium plan
-    # ----------------------------------------------------------------
+    # -----------------------------
+    # Helper to fetch user
+    # -----------------------------
+    def get_user(email):
+        if not email:
+            return None
+        return User.objects.filter(email__iexact=email).first()
+
+    # --------------------------------------------------------------------
+    # 1️⃣ CHECKOUT SESSION COMPLETED → immediate premium upgrade
+    # --------------------------------------------------------------------
     if event["type"] == "checkout.session.completed":
         session = event["data"]["object"]
         email = session.get("customer_email")
+        user = get_user(email)
 
-        user = User.objects.filter(email=email).first()
-        if not user:
-            return JsonResponse({"error": "User not found"}, status=404)
+        if user:
+            user.plan_type = "premium"
+            user.is_plan_paid = True
+            user.save(update_fields=["plan_type", "is_plan_paid"])
+            print(f"[Stripe] Upgrade applied → {user.email}")
 
-        premium_plan = Plan.objects.filter(plan_type="premium").first()
-        
-        # Temporarily upgrade to premium (dates will be set later)
-        user.plan = premium_plan
-        user.save()
+        return JsonResponse({"status": "success"}, status=200)
 
-        print("[Stripe] Checkout completed → user premium assigned (temp)")
-
-
-
-    # ----------------------------------------------------------------
-    # 2) SUBSCRIPTION CREATED → now subscription start/end is available
-    # ----------------------------------------------------------------
+    # --------------------------------------------------------------------
+    # 2️⃣ SUBSCRIPTION CREATED → here we get start & end dates
+    # --------------------------------------------------------------------
     if event["type"] == "customer.subscription.created":
         sub = event["data"]["object"]
 
         customer = stripe.Customer.retrieve(sub["customer"])
         email = customer.get("email")
 
-        user = User.objects.filter(email=email).first()
+        user = get_user(email)
         if not user:
-            return JsonResponse({"error": "User not found"}, status=404)
+            print("[Stripe] No user found for subscription.created")
+            return JsonResponse({"status": "ok"}, status=200)
 
-        premium_plan = Plan.objects.filter(plan_type="premium").first()
+        # Extract timestamps safely
+        start = safe_ts_to_dt(sub.get("current_period_start"))
+        end = safe_ts_to_dt(sub.get("current_period_end"))
 
-        # These fields ALWAYS exist here
-        start_timestamp = sub["current_period_start"]
-        end_timestamp = sub["current_period_end"]
+        # Update user plan info
+        user.plan_type = "premium"
+        user.is_plan_paid = True
+        user.plan_start_date = start
+        user.plan_end_date = end
 
-        start_date = timezone.datetime.fromtimestamp(start_timestamp, tz=timezone.utc)
-        end_date = timezone.datetime.fromtimestamp(end_timestamp, tz=timezone.utc)
+        user.save(update_fields=[
+            "plan_type",
+            "is_plan_paid",
+            "plan_start_date",
+            "plan_end_date"
+        ])
 
-        user.plan = premium_plan
-        user.plan_start_date = start_date
-        user.plan_end_date = end_date
-        user.save()
+        print(f"[Stripe] Subscription dates updated → {user.email}")
 
-        print(f"[Stripe] Subscription created → dates updated for {user.email}")
+        return JsonResponse({"status": "success"}, status=200)
 
-
-
-    # ----------------------------------------------------------------
-    # 3) SUBSCRIPTION DELETED → downgrade user
-    # ----------------------------------------------------------------
+    # --------------------------------------------------------------------
+    # 3️⃣ SUBSCRIPTION DELETED → downgrade to freebie
+    # --------------------------------------------------------------------
     if event["type"] == "customer.subscription.deleted":
         sub = event["data"]["object"]
 
         customer = stripe.Customer.retrieve(sub["customer"])
         email = customer.get("email")
 
-        user = User.objects.filter(email=email).first()
+        user = get_user(email)
         if not user:
-            return JsonResponse({"error": "User not found"}, status=404)
+            return JsonResponse({"status": "ok"}, status=200)
 
-        freebie_plan = Plan.objects.filter(plan_type="freebie").first()
-
-        user.plan = freebie_plan
+        user.plan_type = "freebie"
+        user.is_plan_paid = False
         user.plan_end_date = timezone.now()
-        user.save()
 
-        print(f"[Stripe] Subscription cancelled → downgraded {user.email}")
+        user.save(update_fields=["plan_type", "is_plan_paid", "plan_end_date"])
+
+        print(f"[Stripe] Subscription cancelled → {user.email} downgraded")
+
+        return JsonResponse({"status": "success"}, status=200)
+
+    return JsonResponse({"status": "ignored"}, status=200)
 
 
 
-    return JsonResponse({"status": "success"}, status=200)
+from rest_framework.decorators import api_view, permission_classes
+from rest_framework.permissions import IsAuthenticated
+from rest_framework.response import Response
 
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def user_plan_info(request):
+    user = request.user
+
+    data = {
+        "plan_type": user.plan_type,
+        "is_plan_paid": user.is_plan_paid,
+        "plan_start_date": user.plan_start_date,
+        "plan_end_date": user.plan_end_date,
+    }
+
+    return Response(data)
