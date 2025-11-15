@@ -75,7 +75,7 @@ INSTALLED_APPS = [
      'storages',
     # app 
 
-    'accounts',
+    'accounts.apps.AccountsConfig',
     'chatbot',
     'subscriptions',
     'corsheaders',
@@ -141,7 +141,19 @@ REST_FRAMEWORK = {
 
 
 
+CORS_ALLOWED_ORIGINS = [
+    "http://localhost:7006",
+]
 
+
+
+CSRF_TRUSTED_ORIGINS = [
+    "https://tripersonal-homelessly-felecia.ngrok-free.app", "http://127.0.0.1:7050/"
+]
+CORS_ALLOW_CREDENTIALS = True
+
+CORS_ALLOW_HEADERS = ["*"]
+CORS_ALLOW_METHODS = ["*"]
 
 
 # --------------------- AWS ----------------------------------

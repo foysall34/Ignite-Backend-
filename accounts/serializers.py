@@ -47,11 +47,13 @@ class ChangePasswordSerializer(serializers.Serializer):
 
 class ProfileSerializer(serializers.ModelSerializer):
     profile_picture = serializers.ImageField(required=False, allow_null=True)
+    email = serializers.EmailField(source='user.email', read_only=True) 
+    role=serializers.CharField(source='user.role', read_only=True)
     class Meta:
         model = Profile
 
-        fields = [
+        fields = [ 'email',
             'first_name', 'last_name', 'gender', 'profession', 
             'date_of_birth', 'profile_picture', 'phone', 'location', 
-            'personal_email', 'about_yourself', 'professional_background'
+            'personal_email', 'about_yourself', 'professional_background', 'role'
         ]

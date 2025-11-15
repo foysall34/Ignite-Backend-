@@ -27,13 +27,32 @@ class UserManager(BaseUserManager):
 
         return self.create_user(email, password, **extra_fields)
 
+
+
+
+class Plan(models.Model):
+    PLAN_TYPES = (
+        ("freebie", "Freebie"),
+        ("premium", "Premium"),
+    )
+
+    plan_type = models.CharField(max_length=50, choices=PLAN_TYPES)
+    is_paid = models.BooleanField(default=False)
+
+    def __str__(self):
+        return f"{self.plan_type} ({'Paid' if self.is_paid else 'Free'})"
+
+
+
 class User(AbstractBaseUser, PermissionsMixin):
     ROLE_CHOICES = (
         ('user', 'User'),
         ('admin', 'Admin'),
-        ('premium', 'Premium')
+     
     )
-
+    plan = models.ForeignKey("Plan", on_delete=models.SET_NULL, null=True, blank=True)
+    plan_start_date = models.DateTimeField(null=True, blank=True)
+    plan_end_date = models.DateTimeField(null=True, blank=True)
     email = models.EmailField(unique=True)
     role = models.CharField(max_length=10, choices=ROLE_CHOICES, default='user')
     is_active = models.BooleanField(default=False)
@@ -84,6 +103,10 @@ class Profile(models.Model):
     personal_email = models.EmailField(blank=True)
     about_yourself = models.TextField(blank=True)
     professional_background = models.TextField(blank=True)
+    
 
     def __str__(self):
         return f"{self.user.get_username()}'s Profile"
+    
+
+
