@@ -1,5 +1,5 @@
 from django.urls import path
-from .views import ChatHistoryView, stripe_webhook,CreatePremiumSubscriptionView,CreateTopUpCheckoutView,FileUploadView ,UploadStatusView ,FileUploadViewed , QueryView, UserAllChatsView ,VoiceResponseView, TextToVoiceView, user_plan_info
+from .views import CancelSubscriptionView, ChatHistoryView, FirebaseGoogleAuthView, ShowAllFileList, UpdateFileCategory, stripe_webhook,CreatePremiumSubscriptionView,CreateTopUpCheckoutView,FileUploadView ,UploadStatusView ,FileUploadViewed , QueryView, UserAllChatsView ,VoiceResponseView, TextToVoiceView, user_plan_info
 
 urlpatterns = [
     path('upload/', FileUploadView.as_view(), name='upload-file'),
@@ -9,14 +9,19 @@ urlpatterns = [
     path("chat/history/", ChatHistoryView.as_view(), name="chat-history"),
     path("chat/all/", UserAllChatsView.as_view(), name="user-all-chats"),
 
-
     path('voice-response/', VoiceResponseView.as_view(), name='voice-response'),
     path("text-to-voice/", TextToVoiceView.as_view(), name="text_to_voice"),
     path("create-subscription/", CreatePremiumSubscriptionView.as_view(), name="create-subscription"),
     path("create-topup/", CreateTopUpCheckoutView.as_view(), name="create-topup"),
+    path("cancel-subscription/", CancelSubscriptionView.as_view(), name="cancel_subscription"),
     path("user-plan/", user_plan_info, name="user-plan"),
-
     path("webhook/", stripe_webhook, name="stripe-webhook"),
+    path("uploaded-files-name/", ShowAllFileList.as_view(), name="uploaded_files"),
+    path("update-category/", UpdateFileCategory.as_view(), name="update_category"),
+    path("auth/google/", FirebaseGoogleAuthView.as_view()),
+
+
+
 
 
 ]

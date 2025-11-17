@@ -55,6 +55,7 @@ class User(AbstractBaseUser, PermissionsMixin):
     is_staff = models.BooleanField(default=False)
     otp = models.CharField(max_length=4, blank=True, null=True)
     otp_created_at = models.DateTimeField(blank=True, null=True)
+    created_at = models.DateTimeField(auto_now_add=True,null=True , blank=True) 
 
 
 
@@ -99,6 +100,7 @@ class Profile(models.Model):
     personal_email = models.EmailField(blank=True)
     about_yourself = models.TextField(blank=True)
     professional_background = models.TextField(blank=True)
+    is_cancelled = models.BooleanField(default=False)
     
 
     def __str__(self):

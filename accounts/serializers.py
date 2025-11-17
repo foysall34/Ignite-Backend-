@@ -57,3 +57,15 @@ class ProfileSerializer(serializers.ModelSerializer):
             'date_of_birth', 'profile_picture', 'phone', 'location', 
             'personal_email', 'about_yourself', 'professional_background', 'role'
         ]
+
+
+
+from rest_framework import serializers
+from accounts.models import User
+
+class UserListSerializer(serializers.ModelSerializer):
+    register_date = serializers.DateTimeField(source="created_at")
+
+    class Meta:
+        model = User
+        fields = ["id", "email", "register_date", "role", "plan_type"]

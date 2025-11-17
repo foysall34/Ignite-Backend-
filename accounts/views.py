@@ -39,18 +39,17 @@ class RegisterView(generics.GenericAPIView):
         email = serializer.validated_data['email']
         password = serializer.validated_data['password']
 
-        # Check for already active user
         if User.objects.filter(email=email, is_active=True).exists():
             return Response(
                 {'detail': 'Email is already registered and verified.'},
                 status=status.HTTP_400_BAD_REQUEST
             )
 
-        # Generate OTP and hash password
+
         otp = generate_otp()
         hashed_password = make_password(password)
 
-        # Use same cache format as VerifyOTPView
+    
         cache_key = f"registration_otp_{email}"
         user_data = {
             'email': email,
@@ -58,10 +57,8 @@ class RegisterView(generics.GenericAPIView):
             'otp': otp,
         }
 
-        #  Store OTP data in cache for 10 minutes
         cache.set(cache_key, user_data, timeout=600)
 
-        # Send email
         send_otp_email(email, otp)
 
         return Response(
@@ -89,7 +86,7 @@ class VerifyOTPView(generics.GenericAPIView):
         otp_from_user = serializer.validated_data['otp']
         purpose = serializer.validated_data['purpose']
 
-        # cache key dynamic
+
         cache_key = f"{purpose}_otp_{email}"
         cached_data = cache.get(cache_key)
 
@@ -106,7 +103,7 @@ class VerifyOTPView(generics.GenericAPIView):
             )
 
         try:
-            # 1Registration OTP verification
+  
             if purpose == "registration":
                 user, created = User.objects.get_or_create(
                     email=cached_data['email'],
@@ -121,12 +118,12 @@ class VerifyOTPView(generics.GenericAPIView):
                     user.save()
                 message = "Account verified successfully. You can now log in."
 
-            # Password Reset OTP verification
+        
             elif purpose == "password_reset":
-                # Create temporary reset token
+          
                 from uuid import uuid4
                 reset_token = str(uuid4())
-                cache.set(f"reset_token_{email}", reset_token, timeout=300)  # 5 minutes
+                cache.set(f"reset_token_{email}", reset_token, timeout=300)  
                 message = "OTP verified successfully. Use the reset token to set a new password."
                 response_data = {
                     "detail": message,
@@ -135,7 +132,7 @@ class VerifyOTPView(generics.GenericAPIView):
                 cache.delete(cache_key)
                 return Response(response_data, status=status.HTTP_200_OK)
 
-            # delete otp after verification
+   
             cache.delete(cache_key)
             return Response({'detail': message}, status=status.HTTP_200_OK)
 
@@ -208,11 +205,11 @@ class ForgotPasswordView(generics.GenericAPIView):
         user.otp_created_at = timezone.now()
         user.save()
 
-        #  Save OTP to cache for VerifyOTPView to find
-        cache_key = f"password_reset_otp_{email}"
-        cache.set(cache_key, {"email": email, "otp": otp}, timeout=300)  # valid for 5 min
 
-        # Send email
+        cache_key = f"password_reset_otp_{email}"
+        cache.set(cache_key, {"email": email, "otp": otp}, timeout=300) 
+
+   
         send_password_reset_otp_email(user.email, otp)
         
         return Response({'detail': 'Password reset OTP sent to your email.'}, status=status.HTTP_200_OK)
@@ -307,7 +304,7 @@ class UserProfileView(generics.GenericAPIView):
         serializer = self.get_serializer(profile)
         profile_data = serializer.data
 
-        # Plan info merging
+      
         plan_data = {
             "plan_type": request.user.plan_type,
             "is_plan_paid": request.user.is_plan_paid,
@@ -323,7 +320,7 @@ class UserProfileView(generics.GenericAPIView):
         return Response(final_data, status=status.HTTP_200_OK)
 
     def post(self, request, *args, **kwargs):
-        # Check if profile already exists
+       
         if hasattr(request.user, 'profile'):
             return Response(
                 {'error': 'Profile already exists for this user.'},
@@ -348,3 +345,28 @@ class UserProfileView(generics.GenericAPIView):
         serializer.is_valid(raise_exception=True)
         serializer.save()
         return Response(serializer.data, status=status.HTTP_200_OK)
+
+
+
+from rest_framework.views import APIView
+from rest_framework.response import Response
+from rest_framework.permissions import IsAuthenticated
+from rest_framework import status
+from accounts.models import User
+from .serializers import UserListSerializer
+
+class AllRegisteredUsersView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+
+      
+        if request.user.role != "admin":
+            return Response(
+                {"error": "Only admin can access this endpoint."},
+                status=status.HTTP_403_FORBIDDEN
+            )
+
+        users = User.objects.all().order_by("-created_at")
+        serializer = UserListSerializer(users, many=True)
+        return Response(serializer.data)
