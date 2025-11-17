@@ -617,17 +617,17 @@ import stripe
 from django.conf import settings
 from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
-from django.utils import timezone
 from accounts.models import User
+from datetime import datetime, timezone as dt_timezone
 
 stripe.api_key = settings.STRIPE_SECRET_KEY
 
 
 def safe_ts_to_dt(ts):
-    """Safely convert timestamp to datetime or return None."""
+    """Safely convert timestamp (int) to timezone-aware datetime."""
     if not ts:
         return None
-    return timezone.datetime.fromtimestamp(ts, tz=timezone.utc)
+    return datetime.fromtimestamp(ts, tz=dt_timezone.utc)
 
 
 @csrf_exempt
@@ -637,23 +637,23 @@ def stripe_webhook(request):
     endpoint_secret = settings.STRIPE_WEBHOOK_SECRET
 
     try:
-        event = stripe.Webhook.construct_event(payload, sig_header, endpoint_secret)
+        event = stripe.Webhook.construct_event(
+            payload, sig_header, endpoint_secret
+        )
     except Exception as e:
         return JsonResponse({"error": str(e)}, status=400)
 
-    print(f"[Stripe] Event received: {event['type']}")
+    print(f"[Stripe] Event received → {event['type']}")
 
-    # -----------------------------
-    # Helper to fetch user
-    # -----------------------------
+    # Helper to get user
     def get_user(email):
         if not email:
             return None
         return User.objects.filter(email__iexact=email).first()
 
-    # --------------------------------------------------------------------
-    # 1️⃣ CHECKOUT SESSION COMPLETED → immediate premium upgrade
-    # --------------------------------------------------------------------
+    # -----------------------------------------------------
+    # 1️⃣ checkout.session.completed  →  basic upgrade
+    # -----------------------------------------------------
     if event["type"] == "checkout.session.completed":
         session = event["data"]["object"]
         email = session.get("customer_email")
@@ -663,34 +663,49 @@ def stripe_webhook(request):
             user.plan_type = "premium"
             user.is_plan_paid = True
             user.save(update_fields=["plan_type", "is_plan_paid"])
-            print(f"[Stripe] Upgrade applied → {user.email}")
+            print(f"[Stripe] User upgraded → {user.email}")
 
         return JsonResponse({"status": "success"}, status=200)
 
-    # --------------------------------------------------------------------
-    # 2️⃣ SUBSCRIPTION CREATED → here we get start & end dates
-    # --------------------------------------------------------------------
+    # -----------------------------------------------------
+    # 2️⃣ customer.subscription.created → START & END DATE
+    # -----------------------------------------------------
     if event["type"] == "customer.subscription.created":
         sub = event["data"]["object"]
 
+        print("\n==== DEBUG: subscription.created START ====")
+        print(f"Root current_period_start: {sub.get('current_period_start')}")
+        print(f"Root current_period_end: {sub.get('current_period_end')}")
+
+        # ⭐ Correct location → subscription.items.data[0]
+        item = sub["items"]["data"][0]
+        print(f"Item current_period_start: {item.get('current_period_start')}")
+        print(f"Item current_period_end: {item.get('current_period_end')}")
+
+        # Fetch customer email
         customer = stripe.Customer.retrieve(sub["customer"])
         email = customer.get("email")
-
         user = get_user(email)
+
+        print(f"Matched User: {user}")
+
         if not user:
-            print("[Stripe] No user found for subscription.created")
+            print("No matching user found for subscription event.")
+            print("==== DEBUG END ====\n")
             return JsonResponse({"status": "ok"}, status=200)
 
-        # Extract timestamps safely
-        start = safe_ts_to_dt(sub.get("current_period_start"))
-        end = safe_ts_to_dt(sub.get("current_period_end"))
+        # Correct timestamp conversion
+        start = safe_ts_to_dt(item.get("current_period_start"))
+        end = safe_ts_to_dt(item.get("current_period_end"))
 
-        # Update user plan info
+        print(f"Converted start date → {start}")
+        print(f"Converted end date → {end}")
+
+        # Save to database
         user.plan_type = "premium"
         user.is_plan_paid = True
         user.plan_start_date = start
         user.plan_end_date = end
-
         user.save(update_fields=[
             "plan_type",
             "is_plan_paid",
@@ -698,34 +713,54 @@ def stripe_webhook(request):
             "plan_end_date"
         ])
 
-        print(f"[Stripe] Subscription dates updated → {user.email}")
+        print(f"[Stripe] Subscription dates saved → {user.email}")
+        print("==== DEBUG END ====\n")
 
         return JsonResponse({"status": "success"}, status=200)
 
-    # --------------------------------------------------------------------
-    # 3️⃣ SUBSCRIPTION DELETED → downgrade to freebie
-    # --------------------------------------------------------------------
+    # -----------------------------------------------------
+    # 3️⃣ Subscription Deleted → downgrade to freebie
+    # -----------------------------------------------------
     if event["type"] == "customer.subscription.deleted":
         sub = event["data"]["object"]
-
         customer = stripe.Customer.retrieve(sub["customer"])
         email = customer.get("email")
-
         user = get_user(email)
+
         if not user:
             return JsonResponse({"status": "ok"}, status=200)
 
         user.plan_type = "freebie"
         user.is_plan_paid = False
-        user.plan_end_date = timezone.now()
-
+        user.plan_end_date = datetime.now(tz=dt_timezone.utc)
         user.save(update_fields=["plan_type", "is_plan_paid", "plan_end_date"])
 
-        print(f"[Stripe] Subscription cancelled → {user.email} downgraded")
+        print(f"[Stripe] Subscription cancelled → {user.email}")
 
         return JsonResponse({"status": "success"}, status=200)
 
+    # -----------------------------------------------------
+    # 4️⃣ Invoice events (must respond to avoid 500)
+    # -----------------------------------------------------
+    if event["type"] in [
+        "invoice.created",
+        "invoice.finalized",
+        "invoice.paid",
+        "invoice.payment_succeeded",
+    ]:
+        print(f"[Stripe] Invoice event handled → {event['type']}")
+        return JsonResponse({"status": "ok"}, status=200)
+
+    # -----------------------------------------------------
+    # 5️⃣ Fallback for unhandled events (NO MORE 500)
+    # -----------------------------------------------------
+    print(f"[Stripe] Unhandled event → {event['type']}")
     return JsonResponse({"status": "ignored"}, status=200)
+
+
+
+
+
 
 
 

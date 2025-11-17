@@ -273,56 +273,76 @@ from .models import Profile
 from .serializers import ProfileSerializer
 
 
+from rest_framework import generics, status
+from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
+from rest_framework.response import Response
+from rest_framework.permissions import IsAuthenticated
+
+from .serializers import ProfileSerializer
+from .models import Profile
+
+
 class UserProfileView(generics.GenericAPIView):
 
     permission_classes = [IsAuthenticated]
     parser_classes = [MultiPartParser, FormParser, JSONParser]
-    
 
     serializer_class = ProfileSerializer
-    queryset = Profile.objects.all() 
+    queryset = Profile.objects.all()
 
     def get_object(self):
         """
-  
+        Return user's profile or None
         """
         try:
-           
             return self.request.user.profile
         except Profile.DoesNotExist:
             return None
 
     def get(self, request, *args, **kwargs):
-       
         profile = self.get_object()
         if profile is None:
             return Response({'error': 'Profile not found.'}, status=status.HTTP_404_NOT_FOUND)
-        
 
         serializer = self.get_serializer(profile)
-        return Response(serializer.data, status=status.HTTP_200_OK)
+        profile_data = serializer.data
+
+        # Plan info merging
+        plan_data = {
+            "plan_type": request.user.plan_type,
+            "is_plan_paid": request.user.is_plan_paid,
+            "plan_start_date": request.user.plan_start_date,
+            "plan_end_date": request.user.plan_end_date,
+        }
+
+        final_data = {
+            **profile_data,
+            **plan_data
+        }
+
+        return Response(final_data, status=status.HTTP_200_OK)
 
     def post(self, request, *args, **kwargs):
-    
+        # Check if profile already exists
         if hasattr(request.user, 'profile'):
             return Response(
-                {'error': 'Profile already exists for this user.'}, 
+                {'error': 'Profile already exists for this user.'},
                 status=status.HTTP_400_BAD_REQUEST
             )
-
 
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         serializer.save(user=request.user)
-    
+
         return Response(serializer.data, status=status.HTTP_201_CREATED)
 
     def patch(self, request, *args, **kwargs):
-       
         profile = self.get_object()
         if profile is None:
-            return Response({'error': 'Profile not found. Please create one first.'}, status=status.HTTP_404_NOT_FOUND)
-        
+            return Response(
+                {'error': 'Profile not found. Please create one first.'},
+                status=status.HTTP_404_NOT_FOUND
+            )
 
         serializer = self.get_serializer(profile, data=request.data, partial=True)
         serializer.is_valid(raise_exception=True)
