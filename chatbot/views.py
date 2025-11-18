@@ -121,9 +121,7 @@ class ShowAllFileList(APIView):
 
         return Response(data, status=200)
 
-    # -----------------------------------------
-    # 2️⃣ POST → Filter by category (optional)
-    # -----------------------------------------
+
     def post(self, request):
 
         if request.user.role != "admin":
@@ -155,7 +153,7 @@ class ShowAllFileList(APIView):
             return Response({"error": "Only admin allowed"}, status=403)
 
         file_id = request.data.get("file_id")
-        new_category = request.data.get("category")  # optional
+        new_category = request.data.get("category") 
 
         if not file_id:
             return Response({"error": "file_id is required"}, status=400)
@@ -174,7 +172,7 @@ class ShowAllFileList(APIView):
             "file_id": rec.id,
             "file_name": rec.original_name,
             "date_of_upload": rec.created_at,
-            "category": rec.category   # updated category
+            "category": rec.category  
         }, status=200)
 
 
@@ -197,7 +195,7 @@ class UpdateFileCategory(APIView):
         except UploadRecord.DoesNotExist:
             return Response({"error": "File not found"}, status=404)
 
-        # Update only if category provided
+       
         if new_category:
             record.category = new_category
             record.save(update_fields=["category"])
@@ -907,7 +905,7 @@ class CancelSubscriptionView(APIView):
         user = request.user
 
         try:
-            # 1. Fetch Stripe customer
+           
             customers = stripe.Customer.list(email=user.email).data
             if not customers:
                 return Response({"error": "Stripe customer not found"}, status=400)
@@ -921,10 +919,10 @@ class CancelSubscriptionView(APIView):
 
             subscription = subs[0]
 
-            # 3. Cancel subscription immediately
+       
             stripe.Subscription.delete(subscription.id)
 
-            # 4. Update user in DB
+
             user.plan_type = "freebie"
             user.is_plan_paid = False
             user.plan_end_date = datetime.now(tz=dt_timezone.utc)
@@ -980,7 +978,7 @@ class FirebaseGoogleAuthView(APIView):
             return Response({"error": "id_token is required"}, status=400)
 
         try:
-            # Firebase token verify
+     
             firebase_user = id_token.verify_firebase_token(
                 id_token_str,
                 requests.Request()
@@ -1006,7 +1004,7 @@ class FirebaseGoogleAuthView(APIView):
                 user.name = name
             user.save()
 
-        # JWT tokens
+       
         refresh = RefreshToken.for_user(user)
         access = refresh.access_token
 
