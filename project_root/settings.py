@@ -49,6 +49,7 @@ os.environ["STRIPE_TOPUP_PRICE_ID"] = STRIPE_TOPUP_PRICE_ID
 
 print("stripe key :", os.environ.get("STRIPE_SECRET_KEY"))
 print("pinecone key :", os.environ.get("STRIPE_WEBHOOK_SECRET"))
+print("elevenlabs key :", os.environ.get("ELEVENLABS_API_KEY"))
 
 
 # Quick-start development settings - unsuitable for production
@@ -63,6 +64,31 @@ DEBUG = True
 ALLOWED_HOSTS = ["*"]
 
 
+
+
+import requests
+
+url = f"https://api.elevenlabs.io/v1/convai/knowledge?agent_id={'agent_2901kad5kexeecf9hcd9bf5t5tp5'}"
+
+headers = {
+    "xi-api-key": 'sk_ca28b9ac507fe96ddfffce02cc3a757885cc6b532f5492a0',
+    "Content-Type": "application/json"
+}
+
+res = requests.get(url, headers=headers)
+print(res.json())
+
+
+
+
+
+
+
+
+
+
+
+
 # Application definition
 
 INSTALLED_APPS = [
@@ -72,9 +98,9 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
-     'storages',
+    'storages',
     # app 
-
+    'channels',
     'accounts.apps.AccountsConfig',
     'chatbot',
     'subscriptions',
@@ -139,6 +165,11 @@ REST_FRAMEWORK = {
 }
 
 
+CHANNEL_LAYERS = {
+    "default": {
+        "BACKEND": "channels.layers.InMemoryChannelLayer"
+    }
+}
 
 
 CORS_ALLOWED_ORIGINS = [
@@ -232,6 +263,8 @@ EMAIL_PORT = config('EMAIL_PORT', cast=int)
 EMAIL_USE_TLS = config('EMAIL_USE_TLS', cast=bool)
 EMAIL_HOST_USER = config('EMAIL_HOST_USER')
 EMAIL_HOST_PASSWORD = config('EMAIL_HOST_PASSWORD')
+ELEVENLABS_AGENT_ID = config('AGENT_ID')
+
 
 
 
@@ -248,6 +281,7 @@ SIMPLE_JWT = {
     'REFRESH_TOKEN_LIFETIME': timedelta(days=7), 
    
 }
+
 
 
 
@@ -270,6 +304,9 @@ TEMPLATES = [
 ]
 
 WSGI_APPLICATION = 'project_root.wsgi.application'
+ASGI_APPLICATION = 'project_root.asgi.application'
+
+
 
 
 # Database

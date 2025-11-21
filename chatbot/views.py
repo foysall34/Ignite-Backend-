@@ -37,10 +37,13 @@ from rest_framework.views import APIView
 from rest_framework.parsers import MultiPartParser, FormParser
 from rest_framework.response import Response
 from rest_framework import status
+from django.conf import settings
+
 from .utils_upload import upload_to_s3
-from .models import QueryHistory, UploadRecord
+from .models import UploadRecord
 from .tasks import process_s3_file_task
 from .serializers import UploadRecordSerializer
+
 
 class FileUploadViewed(APIView):
     parser_classes = [MultiPartParser, FormParser]
@@ -56,11 +59,15 @@ class FileUploadViewed(APIView):
         file_obj = request.FILES["file"]
 
         try:
+            # Upload to S3
             s3_key = upload_to_s3(file_obj)
         except Exception as e:
-            return Response({"error": "S3 upload failed", "detail": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            return Response({
+                "error": "S3 upload failed",
+                "detail": str(e)
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
-
+        # Create DB record
         record = UploadRecord.objects.create(
             role=role.lower(),
             original_name=file_obj.name,
@@ -68,11 +75,13 @@ class FileUploadViewed(APIView):
             status="uploaded"
         )
 
+        # Trigger Celery process
         process_s3_file_task.delay(record.id, s3_key)
 
         serializer = UploadRecordSerializer(record)
+
         return Response({
-            "message": "File uploaded to S3 ",
+            "message": "File uploaded to S3 and processing started",
             "record": serializer.data
         }, status=status.HTTP_201_CREATED)
 
@@ -780,7 +789,7 @@ def stripe_webhook(request):
 
     print(f"[Stripe] Event received → {event['type']}")
 
-    # Helper to get user
+   
     def get_user(email):
         if not email:
             return None
@@ -912,7 +921,7 @@ class CancelSubscriptionView(APIView):
 
             customer = customers[0]
 
-            # 2. Get active subscription
+
             subs = stripe.Subscription.list(customer=customer.id, status="active").data
             if not subs:
                 return Response({"error": "No active subscription"}, status=400)
@@ -987,7 +996,7 @@ class FirebaseGoogleAuthView(APIView):
         except Exception as e:
             return Response({"error": "Invalid Firebase Google token"}, status=400)
 
-        # Extract user info
+     
         email = firebase_user.get("email")
         name = firebase_user.get("name", "")
       
@@ -995,7 +1004,6 @@ class FirebaseGoogleAuthView(APIView):
         if not email:
             return Response({"error": "Email not found"}, status=400)
 
-        # Create or get user
         user, created = User.objects.get_or_create(email=email)
 
         if created:
@@ -1015,3 +1023,103 @@ class FirebaseGoogleAuthView(APIView):
             "name": name,
             "user_type": getattr(user, "role", None)  
         })
+
+
+
+
+
+import requests
+from rest_framework.views import APIView
+from rest_framework.response import Response
+from rest_framework import status
+from django.conf import settings
+from rest_framework.permissions import IsAuthenticated
+
+
+class GetSignedURLView(APIView):
+
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        try:
+            ELEVEN_API_KEY = settings.ELEVENLABS_API_KEY
+            AGENT_ID = settings.ELEVENLABS_AGENT_ID
+
+            if not ELEVEN_API_KEY:
+                return Response(
+                    {"error": "ELEVENLABS_API_KEY not set in settings"},
+                    status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                )
+
+            if not AGENT_ID:
+                return Response(
+                    {"error": "AGENT_ID not set in settings"},
+                    status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                )
+
+            user = request.user
+            total_time = getattr(user, "total_time", 0)
+            plan_type = getattr(user, "plan_type", None)
+
+            if total_time == 0:
+                return Response(
+                    {
+                        "error": "No remaining usage time. Please upgrade your plan.",
+                        "total_time": total_time,
+                        "plan_type": plan_type,
+                        "signedUrl": None
+                    },
+                    status=status.HTTP_403_FORBIDDEN,
+                )
+
+            # -------------------- ELEVENLABS REQUEST --------------------
+            url = (
+                f"https://api.elevenlabs.io/v1/convai/conversation/get-signed-url"
+                f"?agent_id={AGENT_ID}"
+            )
+
+            headers = {
+                "xi-api-key": ELEVEN_API_KEY,
+                "Content-Type": "application/json",
+            }
+
+            api_response = requests.get(url, headers=headers)
+
+            if api_response.status_code != 200:
+                try:
+                    error_data = api_response.json()
+                except:
+                    error_data = {"detail": "Unknown error"}
+
+                return Response(
+                    {
+                        "error": f"API error: {api_response.status_code}",
+                        "detail": error_data,
+                        "total_time": total_time,
+                        "plan_type": plan_type,
+                    },
+                    status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                )
+
+            data = api_response.json()
+            signed_url = data.get("signed_url")
+
+            return Response(
+                {
+                    "signedUrl": signed_url,
+                    "total_time": total_time,
+                    "plan_type": plan_type,
+                },
+                status=200,
+            )
+
+        except Exception as e:
+            return Response(
+                {
+                    "error": "Failed to generate signed URL",
+                    "detail": str(e),
+                },
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+
+

@@ -11,6 +11,7 @@ class UserAdmin(BaseUserAdmin):
         "plan_start_date",
         "plan_end_date",
         "is_active",
+        'total_time',
     )
 
     fieldsets = (

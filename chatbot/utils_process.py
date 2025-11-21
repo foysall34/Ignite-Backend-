@@ -59,21 +59,19 @@ def process_file_from_s3(file_key):
         region_name=settings.AWS_S3_REGION_NAME,
     )
 
-    # Download to temp file
     tmp_file = tempfile.NamedTemporaryFile(delete=False)
     s3.download_file(settings.AWS_STORAGE_BUCKET_NAME, file_key, tmp_file.name)
     file_path = tmp_file.name
 
-    # Extract documents
+
     docs = extract_documents_from_file(file_path, file_key)
     if not docs:
         return {"success": False, "message": "No documents extracted"}
 
-    # Split into chunks
+ 
     splitter = RecursiveCharacterTextSplitter(chunk_size=CHUNK_SIZE, chunk_overlap=CHUNK_OVERLAP)
     chunks = splitter.split_documents(docs)
 
-    # Initialize Pinecone (create index if needed)
     pc = Pinecone(api_key=settings.PINECONE_API_KEY)
     if settings.PINECONE_INDEX_NAME not in [i["name"] for i in pc.list_indexes()]:
         pc.create_index(

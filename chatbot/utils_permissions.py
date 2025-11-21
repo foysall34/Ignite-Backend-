@@ -7,8 +7,8 @@ def check_prompt_limit(user):
     if user.role == "admin":
         return 
 
-    # Determine base limit
-    base_limit = 50 if user.role == "user" else 50 # premium users get 3 prompts/month
+    
+    base_limit = 20 if user.role == "user" else 50 # premium users get 3 prompts/month
     total_limit = base_limit + user.extra_prompts
 
     if user.monthly_prompt_count >= total_limit:
@@ -18,3 +18,9 @@ def check_prompt_limit(user):
         )
 
     user.increment_prompt_count()
+
+
+
+
+
+

@@ -56,6 +56,7 @@ class User(AbstractBaseUser, PermissionsMixin):
     otp = models.CharField(max_length=4, blank=True, null=True)
     otp_created_at = models.DateTimeField(blank=True, null=True)
     created_at = models.DateTimeField(auto_now_add=True,null=True , blank=True) 
+    total_time = models.IntegerField(default=600)  # 10 min = 600 seconds
 
 
 
