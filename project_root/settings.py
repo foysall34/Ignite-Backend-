@@ -66,19 +66,6 @@ ALLOWED_HOSTS = ["*"]
 
 
 
-import requests
-
-url = f"https://api.elevenlabs.io/v1/convai/knowledge?agent_id={'agent_2901kad5kexeecf9hcd9bf5t5tp5'}"
-
-headers = {
-    "xi-api-key": 'sk_ca28b9ac507fe96ddfffce02cc3a757885cc6b532f5492a0',
-    "Content-Type": "application/json"
-}
-
-res = requests.get(url, headers=headers)
-print(res.json())
-
-
 
 
 
