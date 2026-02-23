@@ -2,6 +2,8 @@ from rest_framework import generics, status
 from django.contrib.auth.hashers import make_password 
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
+from rest_framework_simplejwt.exceptions import TokenError, InvalidToken
+from .cookie_utils import set_auth_cookies, delete_auth_cookies
 from rest_framework_simplejwt.tokens import RefreshToken
 from .models import User
 from .serializers import (
@@ -152,13 +154,86 @@ class LoginView(generics.GenericAPIView):
         serializer.is_valid(raise_exception=True)
         user = serializer.validated_data
         refresh = RefreshToken.for_user(user)
-        return Response({
-            'role' : user.role ,
-            'email' :user.email,
-            'success_msg' : "login successfull",
-            'refresh': str(refresh),
-            'access': str(refresh.access_token),
+        access_token  = str(refresh.access_token)
+        refresh_token = str(refresh)
+
+        response = Response({
+            'role':        user.role,
+            'email':       user.email,
+            'success_msg': 'login successfull',
+            'refresh':     refresh_token,
+            'access':      access_token,
         })
+
+        # Also set as HttpOnly cookies for browser clients
+        set_auth_cookies(
+            response,
+            access_token=access_token,
+            refresh_token=refresh_token,
+        )
+
+        return response
+
+
+
+
+class LogoutView(generics.GenericAPIView):
+    """Clear both JWT cookies (access + refresh) to log the user out."""
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, *args, **kwargs):
+        response = Response({'detail': 'Logged out successfully.'}, status=status.HTTP_200_OK)
+        delete_auth_cookies(response)
+        return response
+
+
+class TokenRefreshCookieView(generics.GenericAPIView):
+    """
+    Rotate access + refresh tokens using the refresh cookie.
+    ROLLBACK SAFE: old cookies are only replaced after successful rotation.
+    Frontend never sees raw token values.
+    """
+
+    def post(self, request, *args, **kwargs):
+        from django.conf import settings
+        refresh_cookie_name = getattr(settings, 'JWT_COOKIE_REFRESH_NAME', 'refresh')
+        refresh_token_str = request.COOKIES.get(refresh_cookie_name)
+
+        if not refresh_token_str:
+            return Response(
+                {'detail': 'Refresh token cookie not found.'},
+                status=status.HTTP_401_UNAUTHORIZED,
+            )
+
+        try:
+            # Validate and rotate
+            old_refresh = RefreshToken(refresh_token_str)
+            new_access  = old_refresh.access_token
+
+            # Issue a brand-new refresh token
+            old_refresh.set_jti()
+            old_refresh.set_exp()
+
+            response = Response({'detail': 'Token refreshed.'}, status=status.HTTP_200_OK)
+
+            # Only now commit the new cookies (rollback: if we raised above, nothing changed)
+            set_auth_cookies(
+                response,
+                access_token=str(new_access),
+                refresh_token=str(old_refresh),
+            )
+
+            return response
+
+        except (TokenError, InvalidToken) as e:
+            return Response(
+                {'detail': f'Invalid or expired refresh token: {str(e)}'},
+                status=status.HTTP_401_UNAUTHORIZED,
+            )
+
+
+
+
 
 class ResendOTPView(generics.GenericAPIView):
     serializer_class = ResendOTPSerializer
@@ -370,3 +445,46 @@ class AllRegisteredUsersView(APIView):
         users = User.objects.all().order_by("-created_at")
         serializer = UserListSerializer(users, many=True)
         return Response(serializer.data)
+
+
+
+
+
+
+# ── My Limits (logged-in user only) ──────────────────────────────────────────
+
+class UserLimitsOverviewView(APIView):
+    """
+    GET /auth/user-limits/
+    Returns the logged-in user's own pending text_prompts and voice_limit.
+
+    Limits (from utils_permissions.py):
+        freebie : 25 prompts / month
+        premium : 50 prompts / month  + extra_prompts top-ups
+    Voice     : total_time in seconds (default 600 = 10 min)
+    """
+    permission_classes = [IsAuthenticated]
+
+    BASE_LIMIT = {'freebie': 25, 'premium': 50}
+
+    def get(self, request):
+        user = request.user
+        user.reset_prompt_count_if_needed()
+
+        base            = self.BASE_LIMIT.get(user.plan_type, 25)
+        total_allowed   = base + user.extra_prompts
+        pending_prompts = max(total_allowed - user.monthly_prompt_count, 0)
+
+        return Response({
+            "email":           user.email,
+            "plan_type":       user.plan_type,
+            "base_limit":      base,
+            "extra_prompts":   user.extra_prompts,
+            "total_allowed":   total_allowed,
+            "used_prompts":    user.monthly_prompt_count,
+            "pending_prompts": pending_prompts,
+            "voice_limit_sec": user.total_time,
+            "voice_limit_min": user.total_time / 60,
+            "is_plan_paid":    user.is_plan_paid,
+            "plan_end_date":   user.plan_end_date,
+        }, status=status.HTTP_200_OK)

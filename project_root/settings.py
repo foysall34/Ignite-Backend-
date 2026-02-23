@@ -142,11 +142,30 @@ MIDDLEWARE = [
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
+    'accounts.middleware.CookieTokenRefreshMiddleware',
+     
 ]
+
+
+# ── JWT Cookie Configuration ──────────────────────────────────────────────────
+# Cookie names: what the browser sends / what we look for
+JWT_COOKIE_ACCESS_NAME    = 'access'
+JWT_COOKIE_REFRESH_NAME   = 'refresh'
+# Security flags
+JWT_COOKIE_SECURE         = True    # ngrok uses HTTPS — required for SameSite=None
+JWT_COOKIE_HTTPONLY       = True    # Never readable by JavaScript
+JWT_COOKIE_SAMESITE       = 'None'  # Cross-site: frontend & backend on different hosts
+# Lifetimes must match SIMPLE_JWT token lifetimes (in seconds)
+JWT_COOKIE_ACCESS_MAX_AGE  = 7 * 3600         # 7 hours
+JWT_COOKIE_REFRESH_MAX_AGE = 7 * 24 * 3600 
+
+
 
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': (
-        'rest_framework_simplejwt.authentication.JWTAuthentication',
+        # Cookie-based JWT: reads access token from HttpOnly cookie,
+        # falls back to Authorization header for backward compatibility.
+        'accounts.authentication.CookieJWTAuthentication',
     ),
      'DEFAULT_SCHEMA_CLASS': 'drf_spectacular.openapi.AutoSchema',
 }
@@ -160,7 +179,12 @@ CHANNEL_LAYERS = {
 
 
 CORS_ALLOWED_ORIGINS = [
+    "https://tripersonal-homelessly-felecia.ngrok-free.app",
     "http://localhost:7006",
+    "http://localhost:3000",
+    "http://localhost:3001",
+    "http://127.0.0.1:3000",
+    "http://10.10.13.30:7006",
 ]
 
 
@@ -173,6 +197,27 @@ CORS_ALLOW_CREDENTIALS = True
 CORS_ALLOW_HEADERS = ["*"]
 CORS_ALLOW_METHODS = ["*"]
 
+# CORS_ALLOW_HEADERS = [
+#     "accept",
+#     "accept-encoding",
+#     "authorization",
+#     "content-type",
+#     "dnt",
+#     "origin",
+#     "user-agent",
+#     "x-csrftoken",
+#     "x-requested-with",
+#     "ngrok-skip-browser-warning",  # required by the frontend when using ngrok
+# ]
+
+# CORS_ALLOW_METHODS = [
+#     "DELETE",
+#     "GET",
+#     "OPTIONS",
+#     "PATCH",
+#     "POST",
+#     "PUT",
+# ]
 
 # --------------------- AWS ----------------------------------
 
